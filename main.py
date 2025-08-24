@@ -1,23 +1,24 @@
-from fastapi import FastAPI, Request, HTTPException
 import os
+from fastapi import FastAPI
+from fastapi_poe import make_app, PoeBot, QueryRequest
 
-app = FastAPI()
 ACCESS = os.getenv("POE_ACCESS_KEY")
+
+class EchoBot(PoeBot):
+    async def get_response(self, query: QueryRequest):
+        text = (query.query or "").strip()
+        if text.lower().startswith("/ping") or text.lower() == "ping":
+            yield self.text_event("pong 🏓")
+        else:
+            yield self.text_event(f"🧪 受け取り: {text}")
+
+# FastAPI アプリ
+app = FastAPI()
+
+# Poe用のサブアプリを /poe にマウント
+poe_app = make_app(EchoBot(), access_key=ACCESS)
+app.mount("/poe", poe_app)
 
 @app.get("/")
 def health():
     return {"ok": True}
-
-@app.post("/poe")
-async def poe_handler(req: Request):
-    auth = req.headers.get("authorization", "")
-    if not ACCESS or auth != f"Bearer {ACCESS}":
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    body = await req.json()
-    text = (body.get("message", {}).get("content") or "").strip()
-
-    if text.lower().startswith("/ping"):
-        return {"text": "pong 🏓"}
-
-    return {"text": f"🧪 受け取り: {text}"}
