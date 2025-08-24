@@ -20,37 +20,39 @@ class EchoBot(PoeBot):
                 
             if "ping" in content.lower():
                 yield self.text_event("pong")
-
-
-
             elif "make" in content.lower():
-    theme = content.replace("/make", "").replace("make", "").strip()
-    yield self.text_event(f"絵本「{theme}」を生成中...")
-    
-    if not POE_API_KEY:
-        yield self.text_event("エラー: POE_API_KEYが設定されていません")
-    else:
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://api.poe.com/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {POE_API_KEY}"},
-                    json={
-                        "model": "gpt-4o-mini",
-                        "messages": [{"role": "user", "content": f"{theme}の絵本を5ページで作成してください"}]
-                    },
-                    timeout=30.0
-                )
+                theme = content.replace("/make", "").replace("make", "").strip()
+                yield self.text_event(f"絵本「{theme}」を生成中...")
                 
-                if response.status_code == 200:
-                    result = response.json()
-                    story = result["choices"][0]["message"]["content"]
-                    yield self.text_event(f"完成！\n\n{story}")
+                if not POE_API_KEY:
+                    yield self.text_event("エラー: POE_API_KEYが設定されていません")
                 else:
-                    yield self.text_event(f"API エラー: {response.status_code}")
-                    
+                    try:
+                        async with httpx.AsyncClient() as client:
+                            response = await client.post(
+                                "https://api.poe.com/v1/chat/completions",
+                                headers={"Authorization": f"Bearer {POE_API_KEY}"},
+                                json={
+                                    "model": "gpt-4o-mini",
+                                    "messages": [{"role": "user", "content": f"{theme}の絵本を5ページで作成してください"}]
+                                },
+                                timeout=30.0
+                            )
+                            
+                            if response.status_code == 200:
+                                result = response.json()
+                                story = result["choices"][0]["message"]["content"]
+                                yield self.text_event(f"完成！\n\n{story}")
+                            else:
+                                yield self.text_event(f"API エラー: {response.status_code}")
+                                
+                    except Exception as e:
+                        yield self.text_event(f"エラー: {str(e)}")
+            else:
+                yield self.text_event(f"received: {content}")
+                
         except Exception as e:
-            yield self.text_event(f"エラー: {str(e)}")
+            yield self.text_event(f"Error: {str(e)}")
 
 app = FastAPI()
 app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
