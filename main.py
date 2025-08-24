@@ -7,25 +7,6 @@ ACCESS = os.getenv("POE_ACCESS_KEY")
 POE_API_KEY = os.getenv("POE_API_KEY")
 
 class EchoBot(PoeBot):
-    async def call_claude(self, prompt):
-        """Claude-3.5-Sonnetを呼び出す"""
-        try:
-            messages = [fp.ProtocolMessage(role="user", content=prompt)]
-            
-            response_text = ""
-            async for partial in fp.get_bot_response(
-                messages=messages,
-                bot_name="Claude-3.5-Sonnet",  # 公式ドキュメント通り
-                api_key=POE_API_KEY
-            ):
-                if hasattr(partial, 'text') and partial.text:
-                    response_text += partial.text
-            
-            return response_text if response_text else "応答が空でした"
-            
-        except Exception as e:
-            return f"エラー: {str(e)}"
-
     async def get_response(self, query: QueryRequest):
         try:
             content = query.query[-1].content.strip()
@@ -34,50 +15,70 @@ class EchoBot(PoeBot):
                 yield self.text_event("pong")
                 
             elif content.startswith("/ test"):
-                yield self.text_event("🟢 Claude-3.5-Sonnet テスト...")
-                result = await self.call_claude("Hello! Please respond briefly in Japanese.")
-                yield self.text_event(f"Claude応答: {result}")
+                yield self.text_event("🔄 ボット名テスト開始...")
                 
-            elif content.startswith("/ make"):
-                theme = content.replace("/ make", "").strip()
-                if not theme:
-                    yield self.text_event("テーマを指定してください。例: / make 猫の冒険")
-                    return
+                # 最も基本的なボット名から順番にテスト
+                basic_bots = [
+                    "Assistant",
+                    "ChatGPT", 
+                    "Claude-3-Haiku",
+                    "Claude-3-Sonnet",
+                    "GPT-3.5-Turbo",
+                    "Sage"
+                ]
+                
+                for bot_name in basic_bots:
+                    try:
+                        yield self.text_event(f"テスト中: {bot_name}")
+                        
+                        messages = [fp.ProtocolMessage(role="user", content="Hi")]
+                        
+                        async for partial in fp.get_bot_response(
+                            messages=messages,
+                            bot_name=bot_name,
+                            api_key=POE_API_KEY
+                        ):
+                            if hasattr(partial, 'text') and partial.text:
+                                yield self.text_event(f"✅ 成功! {bot_name}: {partial.text[:30]}...")
+                                return
+                        
+                    except Exception as e:
+                        error_msg = str(e)
+                        yield self.text_event(f"❌ {bot_name}: {error_msg[:50]}...")
+                        
+                        # 特定のエラーを詳しく確認
+                        if "not found" in error_msg.lower():
+                            yield self.text_event(f"→ ボット {bot_name} は存在しません")
+                        elif "permission" in error_msg.lower():
+                            yield self.text_event(f"→ {bot_name} の権限がありません")
+                        elif "quota" in error_msg.lower():
+                            yield self.text_event(f"→ {bot_name} のクォータ不足")
+                        
+                yield self.text_event("❌ すべてのボットでエラーが発生しました")
+                
+            elif content.startswith("/ simple"):
+                # 最もシンプルなテスト
+                yield self.text_event("シンプルテスト: Assistant呼び出し...")
+                
+                try:
+                    messages = [fp.ProtocolMessage(role="user", content="Hello")]
                     
-                yield self.text_event(f"📚 絵本「{theme}」を生成中...")
-                
-                story_prompt = f"""
-子供向けの絵本を日本語で作成してください。
-
-テーマ: {theme}
-
-以下の形式で出力してください：
-
-**タイトル: [絵本のタイトル]**
-
-**ページ1:**
-[最初のページの文章（1-2文）]
-
-**ページ2:**
-[2番目のページの文章（1-2文）]
-
-**ページ3:**
-[3番目のページの文章（1-2文）]
-
-**ページ4:**
-[最後のページの文章（1-2文）]
-
-各ページは子供が理解しやすい簡単な文章にしてください。
-                """
-                
-                story = await self.call_claude(story_prompt)
-                yield self.text_event(story)
+                    async for partial in fp.get_bot_response(
+                        messages=messages,
+                        bot_name="Assistant",
+                        api_key=POE_API_KEY
+                    ):
+                        yield self.text_event(f"応答: {partial}")
+                        
+                except Exception as e:
+                    yield self.text_event(f"詳細エラー: {e}")
+                    yield self.text_event(f"エラータイプ: {type(e).__name__}")
                 
             else:
-                yield self.text_event(f"受信: {content}\n\n利用可能なコマンド:\n- `/ test` : Claudeテスト\n- `/ make [テーマ]` : 絵本作成")
+                yield self.text_event(f"受信: {content}\n\nコマンド:\n- `/ test` : ボット名テスト\n- `/ simple` : シンプルテスト")
                 
         except Exception as e:
-            yield self.text_event(f"エラー: {str(e)}")
+            yield self.text_event(f"全体エラー: {str(e)}")
 
 app = FastAPI()
 app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
