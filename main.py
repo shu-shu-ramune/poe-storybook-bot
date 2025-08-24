@@ -25,4 +25,8 @@ class EchoBot(PoeBot):
             yield self.text_event(f"受信: {user_content or raw_text[:100]}")
 
 app = FastAPI()
-app.mount("/poe/", make_app(EchoBot(), a
+app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
+
+@app.get("/")
+def health():
+    return {"ok": True}
