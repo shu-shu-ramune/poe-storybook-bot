@@ -1,11 +1,12 @@
 import os
 from fastapi import FastAPI
 from fastapi_poe import make_app, PoeBot, QueryRequest
+from fastapi_poe.types import Settings, Command
 
 ACCESS = os.getenv("POE_ACCESS_KEY")
+BOT_NAME = os.getenv("POE_BOT_NAME")  # ← 追加
 
 def to_plain_text(q) -> str:
-    """PoeのQueryは str または Content(list) のことがあるので安全に文字列化"""
     if isinstance(q, str):
         return q
     if isinstance(q, list):
@@ -20,11 +21,23 @@ def to_plain_text(q) -> str:
     return ""
 
 class EchoBot(PoeBot):
+    async def get_settings(self) -> Settings:
+        # ここで /ping コマンドをPoe側に宣言して同期
+        return Settings(
+            # ほかはデフォルトでOK。必要に応じて調整
+            commands=[Command(name="ping", display_name="ping", description="health check")]
+        )
+
     async def get_response(self, query: QueryRequest):
-        # 普通のテキスト
+        # デバッグ（Render Logs で確認できる）
+        print(">> query.query=", query.query,
+              " meta.command=",
+              getattr(getattr(query, "metadata", None), "command", None),
+              flush=True)
+
         text = to_plain_text(query.query).strip().lower()
 
-        # スラッシュコマンドの場合は metadata.command に入ってる
+        # スラッシュコマンドは metadata.command に入る
         if not text and getattr(query, "metadata", None):
             cmd = getattr(query.metadata, "command", "")
             if cmd:
@@ -32,11 +45,13 @@ class EchoBot(PoeBot):
 
         if text in ("ping", "/ping"):
             yield self.text_event("pong 🏓")
-        else:
-            yield self.text_event(f"📥 受け取り: {text or '(empty)'}")
+            return
+
+        yield self.text_event(f"📥 受け取り: {text or '(empty)'}")
 
 app = FastAPI()
-app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
+# bot_name を渡すと、起動時に Settings をPoeへ自動同期してくれる
+app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS, bot_name=BOT_NAME))
 
 @app.get("/")
 def health():
