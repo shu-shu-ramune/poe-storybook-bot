@@ -31,12 +31,17 @@ class EchoBot(PoeBot):
                         async with httpx.AsyncClient() as client:
                             response = await client.post(
                                 "https://api.poe.com/v1/chat/completions",
-                                headers={"Authorization": f"Bearer {POE_API_KEY}"},
-                                json={
-                                    "model": "gpt-4o-mini",
-                                    "messages": [{"role": "user", "content": f"{theme}の絵本を5ページで作成してください"}]
+                                headers={
+                                    "Authorization": f"Bearer {POE_API_KEY}",
+                                    "Content-Type": "application/json"
                                 },
-                                timeout=30.0
+                                json={
+                                    "model": "Claude-3.5-Sonnet",  # 正しいモデル名
+                                    "messages": [{"role": "user", "content": f"{theme}の絵本を5ページで作成してください。各ページには短い文章と場面の説明を含めてください。"}],
+                                    "max_tokens": 2000,
+                                    "temperature": 0.7
+                                },
+                                timeout=60.0
                             )
                             
                             if response.status_code == 200:
@@ -44,10 +49,15 @@ class EchoBot(PoeBot):
                                 story = result["choices"][0]["message"]["content"]
                                 yield self.text_event(f"完成！\n\n{story}")
                             else:
-                                yield self.text_event(f"API エラー: {response.status_code}")
+                                error_text = response.text if response.text else "不明なエラー"
+                                yield self.text_event(f"API エラー: {response.status_code}\n詳細: {error_text}")
                                 
+                    except httpx.TimeoutException:
+                        yield self.text_event("タイムアウトエラー: リクエストが時間切れになりました")
+                    except httpx.RequestError as e:
+                        yield self.text_event(f"リクエストエラー: {str(e)}")
                     except Exception as e:
-                        yield self.text_event(f"エラー: {str(e)}")
+                        yield self.text_event(f"予期しないエラー: {str(e)}")
             else:
                 yield self.text_event(f"received: {content}")
                 
