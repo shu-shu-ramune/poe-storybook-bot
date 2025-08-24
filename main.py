@@ -8,40 +8,37 @@ ACCESS = os.getenv("POE_ACCESS_KEY")
 
 class PictureStorybookBot(fp.PoeBot):
     async def get_settings(self, setting: fp.SettingsRequest) -> fp.SettingsResponse:
-        # 正しい依存関係の宣言
         return fp.SettingsResponse(
             server_bot_dependencies={
-                "GPT-4o": 2,  # ツール呼び出しで往復するため2回
-                "Claude-3-Opus": 2,
-                "Claude-3-Sonnet": 2,
-                "GPT-3.5-Turbo": 1
+                "GPT-4o": 2,
+                "Claude-3-Opus": 2
             }
         )
 
     async def get_response(self, request: fp.QueryRequest) -> AsyncIterable[fp.PartialResponse]:
         content = request.query[-1].content.strip()
         
-        if content.startswith("/ test"):
-            yield fp.PartialResponse(text="🔄 設定同期後テスト...\n\n")
-            
+        if content.startswith("/ sync"):
             try:
-                # GPT-4oで試す
+                # 手動同期を実行
+                yield fp.PartialResponse(text="🔄 手動同期実行中...\n")
+                await fp.sync_bot_settings("PictureStorybook", ACCESS)  # ←正確なボット名に変更
+                yield fp.PartialResponse(text="✅ 同期完了\n")
+            except Exception as e:
+                yield fp.PartialResponse(text=f"❌ 同期エラー: {str(e)}\n")
+                
+        elif content.startswith("/ test"):
+            try:
                 async for msg in fp.stream_request(request, "GPT-4o", request.access_key):
-                    yield fp.PartialResponse(text=f"✅ **GPT-4o成功**: {msg.text[:100]}...\n")
+                    yield fp.PartialResponse(text=f"✅ 成功: {msg.text[:100]}...\n")
                     break
             except Exception as e:
-                yield fp.PartialResponse(text=f"❌ GPT-4o: {str(e)}\n")
+                yield fp.PartialResponse(text=f"❌ エラー: {str(e)}\n")
         else:
-            yield fp.PartialResponse(text="/ test で設定同期後テストを実行")
+            yield fp.PartialResponse(text="/ sync で手動同期、/ test でテスト")
 
 app = FastAPI()
-
-# 重要：bot_nameとaccess_keyを指定して自動同期
-app.mount("/poe/", make_app(
-    PictureStorybookBot(), 
-    access_key=ACCESS,
-    bot_name="PictureStorybook"  # あなたのボット名
-))
+app.mount("/poe/", make_app(PictureStorybookBot(), access_key=ACCESS))
 
 @app.get("/")
 def health():
