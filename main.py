@@ -6,10 +6,10 @@ ACCESS = os.getenv("POE_ACCESS_KEY")
 
 class EchoBot(PoeBot):
     async def get_response(self, query: QueryRequest):
-        # シンプルに query の内容をすべて文字列として扱う
         raw_text = str(query.query).lower()
         
-        if "ping" in raw_text:
+        # 厳密に ping だけを判定
+        if raw_text == "ping" or "ping" in raw_text and len(raw_text.strip()) <= 10:
             yield self.text_event("pong 🏓")
         else:
             yield self.text_event(f"受信: {raw_text}")
