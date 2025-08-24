@@ -1,20 +1,18 @@
 import os
+import json
+import httpx
 from fastapi import FastAPI
 from fastapi_poe import make_app, PoeBot, QueryRequest
 
 ACCESS = os.getenv("POE_ACCESS_KEY")
+POE_API_KEY = os.getenv("POE_API_KEY")  # 追加必要
 
 class EchoBot(PoeBot):
     async def get_response(self, query: QueryRequest):
         try:
-            # 最も基本的な方法で内容を取得
             if hasattr(query, 'query') and query.query:
                 if isinstance(query.query, list) and len(query.query) > 0:
-                    last_msg = query.query[-1]
-                    if hasattr(last_msg, 'content'):
-                        content = last_msg.content
-                    else:
-                        content = str(last_msg)
+                    content = query.query[-1].content
                 else:
                     content = str(query.query)
             else:
@@ -22,6 +20,10 @@ class EchoBot(PoeBot):
                 
             if "ping" in content.lower():
                 yield self.text_event("pong")
+            elif content.startswith("/make"):
+                theme = content.replace("/make", "").strip()
+                yield self.text_event(f"絵本「{theme}」を生成中...")
+                # TODO: Poe API呼び出し追加
             else:
                 yield self.text_event(f"received: {content}")
                 
