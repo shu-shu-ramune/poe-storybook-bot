@@ -21,21 +21,19 @@ def to_plain_text(q) -> str:
 
 class EchoBot(PoeBot):
     async def get_response(self, query: QueryRequest):
-        # 本文テキストを取得
-        text = to_plain_text(query.query).strip()
-        # もしスラッシュコマンド扱いなら metadata.command を使う
+        # テキストをまず通常の query から取得
+        text = to_plain_text(query.query).strip().lower()
+
+        # もし空なら metadata.command を見る
         if not text and getattr(query, "metadata", None):
             cmd = getattr(query.metadata, "command", "")
             if cmd:
-                text = cmd
+                text = cmd.lower()
 
-        t = (text or "").strip().lower()
-
-        if t in ("ping", "/ping"):
+        if text in ("ping", "/ping"):
             yield self.text_event("pong 🏓")
-            return
-
-        yield self.text_event(f"📥 受け取り: {t or '(empty)'}")
+        else:
+            yield self.text_event(f"📥 受け取り: {text or '(empty)'}")
 
 app = FastAPI()
 # 末尾スラッシュ付きでマウント（Poe 側のURLも /poe/ に合わせる）
