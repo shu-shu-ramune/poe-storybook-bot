@@ -1,36 +1,35 @@
 import os
-import httpx
+import asyncio
 from fastapi import FastAPI
 from fastapi_poe import make_app, PoeBot, QueryRequest
+import fastapi_poe as fp
 
 ACCESS = os.getenv("POE_ACCESS_KEY")
 POE_API_KEY = os.getenv("POE_API_KEY")
 
 class EchoBot(PoeBot):
-    async def call_poe_api(self, prompt):
-        """Poe APIを呼び出す"""
+    async def call_other_bot(self, prompt, bot_name="Claude-3-Haiku"):
+        """Poe内の他のボットを呼び出す"""
         try:
-            headers = {
-                "Authorization": f"Bearer {POE_API_KEY}",
-                "Content-Type": "application/json"
-            }
+            # ProtocolMessageを作成
+            messages = [
+                fp.ProtocolMessage(role="user", content=prompt)
+            ]
             
-            payload = {
-                "query": prompt,
-                "bot": "Claude-3-Haiku"
-            }
+            # Poe内蔵のBot Query APIを使用
+            response_text = ""
+            async for partial in fp.get_bot_response(
+                messages=messages,
+                bot_name=bot_name,
+                api_key=POE_API_KEY
+            ):
+                if hasattr(partial, 'text') and partial.text:
+                    response_text += partial.text
             
-            async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(
-                    "https://api.poe.com/bot/chat",
-                    headers=headers,
-                    json=payload
-                )
-                
-                return f"Status: {response.status_code}\nResponse: {response.text[:300]}..."
-                
+            return response_text
+            
         except Exception as e:
-            return f"Error: {str(e)}"
+            return f"Bot呼び出しエラー: {str(e)}"
 
     async def get_response(self, query: QueryRequest):
         try:
@@ -46,14 +45,41 @@ class EchoBot(PoeBot):
             
             if "ping" in content.lower():
                 yield self.text_event("pong")
+                
             elif content.startswith("/ test"):
-                yield self.text_event("🟢 API呼び出しテスト開始...")
-                result = await self.call_poe_api("Hello!")
-                yield self.text_event(result)
+                yield self.text_event("🟢 Poe Bot Query API テスト開始...")
+                
+                # Poe内蔵APIでClaude呼び出し
+                result = await self.call_other_bot("Hello! Please respond briefly.")
+                yield self.text_event(f"Claude応答: {result}")
+                
             elif content.startswith("/ make"):
                 theme = content.replace("/ make", "").strip()
+                if not theme:
+                    yield self.text_event("テーマを指定してください。例: / make 猫の冒険")
+                    return
+                    
                 yield self.text_event(f"絵本「{theme}」を生成中...")
-                yield self.text_event("(まだ実装中...)")
+                
+                # 絵本生成プロンプト
+                story_prompt = f"""
+                テーマ「{theme}」で、子供向けの短い絵本を作ってください。
+                以下の形式で出力してください：
+
+                タイトル: [絵本のタイトル]
+
+                ページ1: [最初のページの文章]
+                ページ2: [2番目のページの文章]  
+                ページ3: [3番目のページの文章]
+                ページ4: [最後のページの文章]
+
+                各ページは1-2文程度の短い文章にしてください。
+                """
+                
+                # Claude呼び出しで絵本生成
+                story = await self.call_other_bot(story_prompt, "Claude-3-Haiku")
+                yield self.text_event(story)
+                
             else:
                 yield self.text_event(f"received: {content}")
                 
