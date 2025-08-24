@@ -1,12 +1,11 @@
 import os
 from fastapi import FastAPI
 from fastapi_poe import make_app, PoeBot, QueryRequest
-from fastapi_poe.types import Settings, Command
 
 ACCESS = os.getenv("POE_ACCESS_KEY")
-BOT_NAME = os.getenv("POE_BOT_NAME")  # ← 追加
 
 def to_plain_text(q) -> str:
+    # Poeのqueryは str か Content(list)。テキストだけ連結して返す
     if isinstance(q, str):
         return q
     if isinstance(q, list):
@@ -21,37 +20,30 @@ def to_plain_text(q) -> str:
     return ""
 
 class EchoBot(PoeBot):
-    async def get_settings(self) -> Settings:
-        # ここで /ping コマンドをPoe側に宣言して同期
-        return Settings(
-            # ほかはデフォルトでOK。必要に応じて調整
-            commands=[Command(name="ping", display_name="ping", description="health check")]
-        )
-
     async def get_response(self, query: QueryRequest):
-        # デバッグ（Render Logs で確認できる）
+        # デバッグ（RenderのLogsに出る）
         print(">> query.query=", query.query,
               " meta.command=",
               getattr(getattr(query, "metadata", None), "command", None),
               flush=True)
 
-        text = to_plain_text(query.query).strip().lower()
-
-        # スラッシュコマンドは metadata.command に入る
+        text = to_plain_text(query.query).strip()
+        # スラッシュコマンドは本文に乗らず metadata.command に来る
         if not text and getattr(query, "metadata", None):
             cmd = getattr(query.metadata, "command", "")
             if cmd:
-                text = cmd.lower()
+                text = cmd
+        t = (text or "").strip().lower()
 
-        if text in ("ping", "/ping"):
+        if t in ("ping", "/ping"):
             yield self.text_event("pong 🏓")
             return
 
-        yield self.text_event(f"📥 受け取り: {text or '(empty)'}")
+        yield self.text_event(f"📥 受け取り: {t or '(empty)'}")
 
 app = FastAPI()
-# bot_name を渡すと、起動時に Settings をPoeへ自動同期してくれる
-app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS, bot_name=BOT_NAME))
+# リダイレクト回避のため末尾スラッシュでマウント（Poe側URLも /poe/ に）
+app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
 
 @app.get("/")
 def health():
