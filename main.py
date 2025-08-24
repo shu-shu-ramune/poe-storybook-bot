@@ -1,5 +1,4 @@
 import os
-import asyncio
 from fastapi import FastAPI
 from fastapi_poe import make_app, PoeBot, QueryRequest
 import fastapi_poe as fp
@@ -8,29 +7,6 @@ ACCESS = os.getenv("POE_ACCESS_KEY")
 POE_API_KEY = os.getenv("POE_API_KEY")
 
 class EchoBot(PoeBot):
-    async def call_other_bot(self, prompt, bot_name="Claude-3-Haiku"):
-        """Poe内の他のボットを呼び出す"""
-        try:
-            # ProtocolMessageを作成
-            messages = [
-                fp.ProtocolMessage(role="user", content=prompt)
-            ]
-            
-            # Poe内蔵のBot Query APIを使用
-            response_text = ""
-            async for partial in fp.get_bot_response(
-                messages=messages,
-                bot_name=bot_name,
-                api_key=POE_API_KEY
-            ):
-                if hasattr(partial, 'text') and partial.text:
-                    response_text += partial.text
-            
-            return response_text
-            
-        except Exception as e:
-            return f"Bot呼び出しエラー: {str(e)}"
-
     async def get_response(self, query: QueryRequest):
         try:
             if hasattr(query, 'query') and query.query:
@@ -47,44 +23,50 @@ class EchoBot(PoeBot):
                 yield self.text_event("pong")
                 
             elif content.startswith("/ test"):
-                yield self.text_event("🟢 Poe Bot Query API テスト開始...")
+                yield self.text_event("🟢 基本テスト開始...")
                 
-                # Poe内蔵APIでClaude呼び出し
-                result = await self.call_other_bot("Hello! Please respond briefly.")
-                yield self.text_event(f"Claude応答: {result}")
+                # 環境変数確認
+                access_status = "設定済み" if ACCESS else "未設定"
+                api_status = "設定済み" if POE_API_KEY else "未設定"
+                
+                yield self.text_event(f"ACCESS_KEY: {access_status}")
+                yield self.text_event(f"POE_API_KEY: {api_status}")
+                
+                if POE_API_KEY:
+                    yield self.text_event(f"API Key長さ: {len(POE_API_KEY)}")
+                    yield self.text_event(f"API Key先頭: {POE_API_KEY[:8]}...")
+                
+                # 簡単なBot Query APIテスト
+                try:
+                    yield self.text_event("🔄 Claude呼び出し開始...")
+                    
+                    messages = [fp.ProtocolMessage(role="user", content="Hi")]
+                    
+                    response_count = 0
+                    async for partial in fp.get_bot_response(
+                        messages=messages,
+                        bot_name="Claude-3.5-Sonnet",
+                        api_key=POE_API_KEY
+                    ):
+                        response_count += 1
+                        if hasattr(partial, 'text') and partial.text:
+                            yield self.text_event(f"応答{response_count}: {partial.text[:50]}...")
+                            break
+                    
+                    if response_count == 0:
+                        yield self.text_event("❌ 応答なし")
+                        
+                except Exception as e:
+                    yield self.text_event(f"❌ Bot Query API エラー: {str(e)}")
                 
             elif content.startswith("/ make"):
-                theme = content.replace("/ make", "").strip()
-                if not theme:
-                    yield self.text_event("テーマを指定してください。例: / make 猫の冒険")
-                    return
-                    
-                yield self.text_event(f"絵本「{theme}」を生成中...")
-                
-                # 絵本生成プロンプト
-                story_prompt = f"""
-                テーマ「{theme}」で、子供向けの短い絵本を作ってください。
-                以下の形式で出力してください：
-
-                タイトル: [絵本のタイトル]
-
-                ページ1: [最初のページの文章]
-                ページ2: [2番目のページの文章]  
-                ページ3: [3番目のページの文章]
-                ページ4: [最後のページの文章]
-
-                各ページは1-2文程度の短い文章にしてください。
-                """
-                
-                # Claude呼び出しで絵本生成
-                story = await self.call_other_bot(story_prompt, "Claude-3-Haiku")
-                yield self.text_event(story)
+                yield self.text_event("🚧 まだ実装中です")
                 
             else:
-                yield self.text_event(f"received: {content}")
+                yield self.text_event(f"受信: {content}")
                 
         except Exception as e:
-            yield self.text_event(f"Error: {str(e)}")
+            yield self.text_event(f"全体エラー: {str(e)}")
 
 app = FastAPI()
 app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
