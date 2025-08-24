@@ -5,6 +5,7 @@ from fastapi_poe import make_app, PoeBot, QueryRequest
 ACCESS = os.getenv("POE_ACCESS_KEY")
 
 def to_plain_text(q) -> str:
+    """PoeのQueryは str または Content(list) のことがあるので安全に文字列化"""
     if isinstance(q, str):
         return q
     if isinstance(q, list):
@@ -20,30 +21,21 @@ def to_plain_text(q) -> str:
 
 class EchoBot(PoeBot):
     async def get_response(self, query: QueryRequest):
-        # デバッグ（RenderのLogsに出る）
-        print(">> query.query=", query.query,
-              " meta.command=",
-              getattr(getattr(query, "metadata", None), "command", None),
-              flush=True)
+        # 普通のテキスト
+        text = to_plain_text(query.query).strip().lower()
 
-        # まず通常テキスト
-        text = to_plain_text(query.query).strip()
-
-        # 空なら /command を拾う
+        # スラッシュコマンドの場合は metadata.command に入ってる
         if not text and getattr(query, "metadata", None):
             cmd = getattr(query.metadata, "command", "")
             if cmd:
-                text = cmd
+                text = cmd.lower()
 
-        t = (text or "").strip().lower()
-
-        if t in ("ping", "/ping"):
+        if text in ("ping", "/ping"):
             yield self.text_event("pong 🏓")
         else:
-            yield self.text_event(f"📥 受け取り: {t or '(empty)'}")
+            yield self.text_event(f"📥 受け取り: {text or '(empty)'}")
 
 app = FastAPI()
-# Poe 側のURLが /poe/ ならこちらに合わせる（どちらかに統一）
 app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
 
 @app.get("/")
