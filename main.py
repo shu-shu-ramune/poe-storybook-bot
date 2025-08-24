@@ -21,10 +21,26 @@ class EchoBot(PoeBot):
             if "ping" in content.lower():
                 yield self.text_event("pong")
             elif "make" in content.lower() and ("海" in content or "冒険" in content or len(content.split()) >= 2):
-                # makeを含み、テーマらしき内容がある場合
                 theme = content.replace("/make", "").replace("make", "").strip()
                 yield self.text_event(f"絵本「{theme}」を生成中...")
-                # TODO: Poe API呼び出し追加
+                
+                # 実際の生成処理
+                try:
+                    async with httpx.AsyncClient() as client:
+                        response = await client.post(
+                            "https://api.poe.com/v1/chat/completions",
+                            headers={"Authorization": f"Bearer {POE_API_KEY}"},
+                            json={
+                                "model": "gemini-1.5-pro",
+                                "messages": [{"role": "user", "content": f"{theme}というテーマで5ページの絵本を作って"}],
+                                "max_tokens": 1000
+                            }
+                        )
+                        result = response.json()
+                        story = result["choices"][0]["message"]["content"]
+                        yield self.text_event(f"完成！\n\n{story}")
+                except Exception as e:
+                    yield self.text_event(f"生成エラー: {str(e)}")
             else:
                 yield self.text_event(f"received: {content}")
                 
