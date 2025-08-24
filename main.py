@@ -20,15 +20,15 @@ class EchoBot(PoeBot):
             content = content.strip()
             
             # デバッグ出力
-            yield self.text_event(f"Debug: '{content}' (length: {len(content)})")
+            yield self.text_event(f"Debug: '{content}'")
             
             if "ping" in content.lower():
                 yield self.text_event("pong")
-            elif content.startswith("/test"):
+            elif content.startswith("/test") or content.startswith("/ test"):
                 yield self.text_event("🟢 /test コマンド認識成功！")
                 api_status = "設定済み" if POE_API_KEY else "未設定"
                 yield self.text_event(f"API Key: {api_status}")
-            elif content.startswith("/make"):
+            elif content.startswith("/make") or content.startswith("/ make"):
                 yield self.text_event("🟢 /make コマンド認識成功！")
             else:
                 yield self.text_event(f"received: {content}")
