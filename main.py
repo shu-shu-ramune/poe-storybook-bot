@@ -4,20 +4,37 @@ from fastapi_poe import make_app, PoeBot, QueryRequest
 
 ACCESS = os.getenv("POE_ACCESS_KEY")
 
+def to_plain_text(q) -> str:
+    """PoeのQueryは str または Content(list) のことがあるので安全に文字列化"""
+    if isinstance(q, str):
+        return q
+    if isinstance(q, list):
+        parts = []
+        for c in q:
+            # dictでもオブジェクトでも text パートだけ拾う
+            t = None
+            if isinstance(c, dict):
+                if c.get("type") == "text":
+                    t = c.get("text", "")
+            else:
+                # fastapi_poe.types.Content の場合
+                if getattr(c, "type", "") == "text":
+                    t = getattr(c, "text", "")
+            if t:
+                parts.append(t)
+        return "".join(parts)
+    return ""
+
 class EchoBot(PoeBot):
     async def get_response(self, query: QueryRequest):
-        text = (query.query or "").strip()
-        if text.lower().startswith("/ping") or text.lower() == "ping":
+        text = to_plain_text(query.query).strip()
+        if text.lower().startswith("/ping") or text.lower() == "ping" or text == "/ ping":
             yield self.text_event("pong 🏓")
         else:
-            yield self.text_event(f"🧪 受け取り: {text}")
+            yield self.text_event(f"🧪 受け取り: {text or '(empty)'}")
 
-# FastAPI アプリ
 app = FastAPI()
-
-# Poe用のサブアプリを /poe にマウント
-poe_app = make_app(EchoBot(), access_key=ACCESS)
-app.mount("/poe", poe_app)
+app.mount("/poe", make_app(EchoBot(), access_key=ACCESS))
 
 @app.get("/")
 def health():
