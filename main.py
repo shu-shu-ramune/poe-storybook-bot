@@ -6,23 +6,27 @@ ACCESS = os.getenv("POE_ACCESS_KEY")
 
 class EchoBot(PoeBot):
     async def get_response(self, query: QueryRequest):
-        # query.query を文字列化して content= の部分を抽出
-        raw_text = str(query.query)
-        
-        # content='...' の部分を抽出
-        import re
-        content_matches = re.findall(r"content='([^']*)'", raw_text)
-        
-        if content_matches:
-            # 最後のユーザーメッセージの content を使用
-            user_content = content_matches[-1].lower().strip()
-        else:
-            user_content = ""
-        
-        if user_content in ("ping", "/ping"):
-            yield self.text_event("pong 🏓")
-        else:
-            yield self.text_event(f"受信: {user_content or raw_text[:100]}")
+        try:
+            # 最も基本的な方法で内容を取得
+            if hasattr(query, 'query') and query.query:
+                if isinstance(query.query, list) and len(query.query) > 0:
+                    last_msg = query.query[-1]
+                    if hasattr(last_msg, 'content'):
+                        content = last_msg.content
+                    else:
+                        content = str(last_msg)
+                else:
+                    content = str(query.query)
+            else:
+                content = "no content"
+                
+            if "ping" in content.lower():
+                yield self.text_event("pong")
+            else:
+                yield self.text_event(f"received: {content}")
+                
+        except Exception as e:
+            yield self.text_event(f"Error: {str(e)}")
 
 app = FastAPI()
 app.mount("/poe/", make_app(EchoBot(), access_key=ACCESS))
