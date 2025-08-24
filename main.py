@@ -27,12 +27,13 @@ def to_plain_text(q) -> str:
 
 class EchoBot(PoeBot):
     async def get_response(self, query: QueryRequest):
-        text = to_plain_text(query.query).strip()
-        if text.lower().startswith("/ping") or text.lower() == "ping" or text == "/ ping":
+        text = to_plain_text(query.query).strip().lower()
+
+        if text in ("ping", "/ping"):
             yield self.text_event("pong 🏓")
         else:
-            yield self.text_event(f"🧪 受け取り: {text or '(empty)'}")
-
+            yield self.text_event(f"📥 受け取り: {text or '(empty)'}")
+            
 app = FastAPI()
 app.mount("/poe", make_app(EchoBot(), access_key=ACCESS))
 
