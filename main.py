@@ -16,8 +16,11 @@ class EchoBot(PoeBot):
             else:
                 content = "no content"
                 
+            # スペースを除去
+            content = content.strip()
+            
             # デバッグ出力
-            yield self.text_event(f"Debug: '{content}'")
+            yield self.text_event(f"Debug: '{content}' (length: {len(content)})")
             
             if "ping" in content.lower():
                 yield self.text_event("pong")
